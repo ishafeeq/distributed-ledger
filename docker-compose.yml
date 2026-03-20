@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: "-js"
+    secrets:
+      - nats_token
+
+  redis-1:
+    image: redis:7-alpine
+    container_name: redis-shard-1
+    ports:
+      - "6379:6379"
+    command: ["sh", "-c", "redis-server --appendonly yes --requirepass $$(cat /run/secrets/redis_password)"]
+    secrets:
+      - redis_password
+
+  redis-2:
+    image: redis:7-alpine
+    container_name: redis-shard-2
+    ports:
+      - "6380:6379"
+    command: ["sh", "-c", "redis-server --appendonly yes --requirepass $$(cat /run/secrets/redis_password)"]
+    secrets:
+      - redis_password
+
+  redis-3:
+    image: redis:7-alpine
+    container_name: redis-shard-3
+    ports:
+      - "6381:6379"
+    command: ["sh", "-c", "redis-server --appendonly yes --requirepass $$(cat /run/secrets/redis_password)"]
+    secrets:
+      - redis_password
+
+  ledger:
+    build: .
+    container_name: ledger-app
+    depends_on:
+      - nats
+      - redis-1
+      - redis-2
+      - redis-3
+    secrets:
+      - nats_token
+      - redis_password
+    ports:
+      - "9300:9300"
+    restart: always
+
+secrets:
+  nats_token:
+    file: ./secrets/nats_token.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
