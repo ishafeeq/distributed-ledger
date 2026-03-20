@@ -1,0 +1,55 @@
+version: '3'
+
+vars:
+  REMOTE_HOST: ubuntu@ec2-3-7-70-60.ap-south-1.compute.amazonaws.com
+  REMOTE_ADDR: ec2-3-7-70-60.ap-south-1.compute.amazonaws.com
+  REMOTE_KEY: /Users/shafeeq/Documents/01-New-Job/Prep/ai-serv/lul-mul-tul.pem
+  REMOTE_DIR: '~/ledger-app'
+
+tasks:
+  default:
+    cmds:
+      - task: deploy
+
+  deploy:
+    desc: Sync code to EC2 and deploy
+    cmds:
+      - rsync -avz -e "ssh -i {{.REMOTE_KEY}}" --exclude ".git" --exclude "bin" --exclude "secrets" ./ {{.REMOTE_HOST}}:{{.REMOTE_DIR}}
+      - rsync -avz -e "ssh -i {{.REMOTE_KEY}}" ./secrets/ {{.REMOTE_HOST}}:{{.REMOTE_DIR}}/secrets/
+      - ssh -i {{.REMOTE_KEY}} {{.REMOTE_HOST}} "cd {{.REMOTE_DIR}} && docker compose up -d --build"
+
+  build:remote:
+    desc: Build the binary on the remote host (Ubuntu)
+    cmds:
+      - go build -o bin/ledger ./cmd/ledger/main.go
+
+  infra:up:
+    desc: Start infrastructure on the remote host
+    cmds:
+      - docker compose up -d
+
+  infra:down:
+    desc: Stop infrastructure on the remote host
+    cmds:
+      - docker compose down
+
+  run:
+    desc: Run the distributed ledger (Remote Only)
+    cmds:
+      - cmd: echo 'Local Go execution forbidden. Use task deploy to run on EC2.'
+      - cmd: exit 1
+
+  test:
+    desc: Run all tests locally
+    cmds:
+      - go test -race ./...
+
+  test:api:
+    desc: Verify remote API health (EC2)
+    cmds:
+      - curl -f http://{{.REMOTE_ADDR}}:9300/health
+
+  clean:
+    desc: Remove build artifacts locally
+    cmds:
+      - rm -rf bin/
