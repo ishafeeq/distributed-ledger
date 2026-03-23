@@ -9,10 +9,11 @@ import (
 
 // Command represents a transaction command sent to a shard worker.
 type Command struct {
-	AccountID string
-	Amount    int64
-	Op        string // "credit", "debit", "query"
-	Response  chan CommandResult
+	AccountID   string
+	ToAccountID string // Used for transfers
+	Amount      int64
+	Op          string // "credit", "debit", "query", "transfer"
+	Response    chan CommandResult
 }
 
 // CommandResult contains the outcome of a command.
@@ -65,6 +66,14 @@ func (w *ShardWorker) handleCommand(cmd Command) {
 			return
 		}
 		w.State[cmd.AccountID] -= cmd.Amount
+		cmd.Response <- CommandResult{Balance: w.State[cmd.AccountID]}
+	case "transfer":
+		if w.State[cmd.AccountID] < cmd.Amount {
+			cmd.Response <- CommandResult{Error: fmt.Errorf("insufficient balance")}
+			return
+		}
+		w.State[cmd.AccountID] -= cmd.Amount
+		w.State[cmd.ToAccountID] += cmd.Amount
 		cmd.Response <- CommandResult{Balance: w.State[cmd.AccountID]}
 	case "query":
 		cmd.Response <- CommandResult{Balance: w.State[cmd.AccountID]}
